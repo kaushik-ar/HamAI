@@ -46,6 +46,7 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [transactionSort, setTransactionSort] = useState('largest'); // 'largest' | 'smallest'
   const [groupBy, setGroupBy] = useState('none'); // 'none' | 'category' | 'receiver'
+  const [entryTypeFilter, setEntryTypeFilter] = useState('expense'); // 'expense' | 'income'
   const [categories, setCategories] = useState([]);
   const [receivers, setReceivers] = useState([]);
   const [editingItem, setEditingItem] = useState(null); // { type: 'category'|'receiver', oldValue: string, newValue: string }
@@ -170,9 +171,7 @@ const Dashboard = () => {
             return mapUpdated ? updatedMap : prevMap;
           });
         }
-        let filteredEntries = rawEntries;
-        if (categoryFilter && categoryFilter !== 'all') filteredEntries = filteredEntries.filter(e => e.category === categoryFilter);
-        setEntries(filteredEntries);
+        setEntries(rawEntries);
       } else {
         const allResponse = await api.get('/budget?limit=5000');
         const allEntries = (allResponse.data?.entries || []).map(e => ({
@@ -221,9 +220,7 @@ const Dashboard = () => {
             return mapUpdated ? updatedMap : prevMap;
           });
         }
-        let filteredEntries = scopeEntries;
-        if (categoryFilter && categoryFilter !== 'all') filteredEntries = filteredEntries.filter(e => e.category === categoryFilter);
-        setEntries(filteredEntries);
+        setEntries(scopeEntries);
       }
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -232,7 +229,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [viewMode, selectedMonth, selectedYear, categoryFilter, currentYear]);
+  }, [viewMode, selectedMonth, selectedYear, currentYear]);
 
   useEffect(() => {
     fetchData();
@@ -332,11 +329,46 @@ const Dashboard = () => {
     setSearchParams({ month: newMonth, year: newYear });
   };
 
+  // Reset category filter when the income/expense type toggle changes
+  useEffect(() => {
+    setCategoryFilter('all');
+  }, [entryTypeFilter]);
+
+  // Entries filtered to the selected type only
+  const typedEntries = useMemo(() => {
+    return entries.filter(e => (e.type || 'expense') === entryTypeFilter);
+  }, [entries, entryTypeFilter]);
+
+  // Stats computed from typedEntries (for cards, analytics, categories)
+  const typedStats = useMemo(() => {
+    const total = typedEntries.reduce((sum, e) => sum + (Number(e.total) || 0), 0);
+    const categoryTotals = {};
+    typedEntries.forEach(e => {
+      const cat = (e.category || 'other').toLowerCase();
+      categoryTotals[cat] = (categoryTotals[cat] || 0) + (Number(e.total) || 0);
+    });
+    const uniqueCategories = [...new Set(typedEntries.map(e => (e.category || 'other').toLowerCase()))];
+    return { total, count: typedEntries.length, categories: uniqueCategories, categoryTotals };
+  }, [typedEntries]);
+
+  // Categories and receivers scoped to the selected type (for dropdowns and edit lists)
+  const typedCategories = useMemo(() => {
+    const usedCats = new Set(typedEntries.map(e => (e.category || 'other').toLowerCase()));
+    return categories.filter(c => usedCats.has(c.toLowerCase()));
+  }, [categories, typedEntries]);
+
+  const typedReceivers = useMemo(() => {
+    const usedRecs = new Set(
+      typedEntries.map(e => (e.receiver || e.store || '').toLowerCase()).filter(Boolean)
+    );
+    return receivers.filter(r => usedRecs.has(r.toLowerCase()));
+  }, [receivers, typedEntries]);
+
   // Table data: filter by category + search, then sort (used for display and Excel export)
   const tableData = useMemo(() => {
     let list = categoryFilter === 'all'
-      ? entries
-      : entries.filter((e) => e.category === categoryFilter);
+      ? typedEntries
+      : typedEntries.filter((e) => e.category === categoryFilter);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter((entry) => {
@@ -361,7 +393,7 @@ const Dashboard = () => {
       return transactionSort === 'largest' ? vb - va : va - vb;
     });
     return sorted;
-  }, [entries, categoryFilter, searchQuery, transactionSort]);
+  }, [typedEntries, categoryFilter, searchQuery, transactionSort]);
 
   const downloadTableAsExcel = () => {
     let sheetName;
@@ -496,15 +528,15 @@ const Dashboard = () => {
     );
   };
 
-  // Prepare chart data
+  // Prepare chart data (scoped to selected type)
   const categoryChartData = useMemo(() => {
-    if (!stats?.categoryTotals) return [];
-    return Object.entries(stats.categoryTotals).map(([name, value]) => ({
+    if (!typedStats.categoryTotals) return [];
+    return Object.entries(typedStats.categoryTotals).map(([name, value]) => ({
       name: name.charAt(0).toUpperCase() + name.slice(1),
-      originalName: name.toLowerCase(), // Keep original for filtering
+      originalName: name.toLowerCase(),
       value: parseFloat(value.toFixed(2))
     })).sort((a, b) => b.value - a.value);
-  }, [stats]);
+  }, [typedStats]);
 
   // Initialize selected categories when chart data changes (all selected by default)
   useEffect(() => {
@@ -775,23 +807,41 @@ const Dashboard = () => {
           </div>
         ) : (
           <>
+            {/* Income / Expense Toggle */}
+            <div className="entry-type-toggle">
+              <button
+                type="button"
+                className={`entry-type-btn${entryTypeFilter === 'expense' ? ' active-expense' : ''}`}
+                onClick={() => setEntryTypeFilter('expense')}
+              >
+                <ArrowDownRight size={16} /> Expenses
+              </button>
+              <button
+                type="button"
+                className={`entry-type-btn${entryTypeFilter === 'income' ? ' active-income' : ''}`}
+                onClick={() => setEntryTypeFilter('income')}
+              >
+                <ArrowUpRight size={16} /> Income
+              </button>
+            </div>
+
             {/* Key Metrics */}
             <div className="stats-grid">
-        <div className="stats-card">
-          <div className="stat-item">
-            <DollarSign size={32} />
-                  <div className="stat-content">
-              <p className="stat-label">Total Spent</p>
-                    <p className="stat-value">${stats.totalSpent?.toFixed(2) || '0.00'}</p>
-                  </div>
-            </div>
-          </div>
               <div className="stats-card">
-          <div className="stat-item">
-            <Calendar size={32} />
+                <div className="stat-item">
+                  <DollarSign size={32} />
                   <div className="stat-content">
-              <p className="stat-label">Total transactions</p>
-                    <p className="stat-value">{stats.totalEntries || 0}</p>
+                    <p className="stat-label">{entryTypeFilter === 'expense' ? 'Total Spent' : 'Total Earned'}</p>
+                    <p className="stat-value">${typedStats.total.toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="stats-card">
+                <div className="stat-item">
+                  <Calendar size={32} />
+                  <div className="stat-content">
+                    <p className="stat-label">Transactions</p>
+                    <p className="stat-value">{typedStats.count}</p>
                   </div>
                 </div>
               </div>
@@ -800,7 +850,7 @@ const Dashboard = () => {
                   <Tag size={32} />
                   <div className="stat-content">
                     <p className="stat-label">Categories</p>
-                    <p className="stat-value">{stats.categories?.length || 0}</p>
+                    <p className="stat-value">{typedStats.categories.length}</p>
                   </div>
                 </div>
               </div>
@@ -810,12 +860,12 @@ const Dashboard = () => {
                   <div className="stat-content">
                     <p className="stat-label">Avg per Transaction</p>
                     <p className="stat-value">
-                      ${stats.totalEntries > 0 ? (stats.totalSpent / stats.totalEntries).toFixed(2) : '0.00'}
+                      ${typedStats.count > 0 ? (typedStats.total / typedStats.count).toFixed(2) : '0.00'}
                     </p>
                   </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
             {/* Tabs */}
             <div className="dashboard-tabs">
@@ -920,7 +970,7 @@ const Dashboard = () => {
                     aria-label="Filter by category"
                   >
                     <option value="all">All</option>
-                    {categories.map(cat => (
+                    {typedCategories.map(cat => (
                       <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
                     ))}
                   </select>
@@ -990,7 +1040,7 @@ const Dashboard = () => {
                   <div className="chart-card-large">
                     <div className="chart-header">
                       <PieChart size={24} />
-                      <h3>Spending by Category</h3>
+                      <h3>{entryTypeFilter === 'expense' ? 'Expenses by Category' : 'Income by Category'}</h3>
                     </div>
                     <div className="chart-content-wrapper">
                       <div className="chart-checkboxes">
@@ -1050,9 +1100,9 @@ const Dashboard = () => {
                 <div className="categories-content">
                   {/* Edit Categories Section */}
                   <div className="edit-section">
-                    <h3>Edit Categories</h3>
+                    <h3>Edit {entryTypeFilter === 'expense' ? 'Expense' : 'Income'} Categories</h3>
                     <div className="editable-list">
-                      {categories.map(cat => (
+                      {typedCategories.map(cat => (
                         <div key={cat} className="editable-list-item">
                           {editingItem?.type === 'category' && editingItem.oldValue === cat ? (
                             <input
@@ -1101,9 +1151,9 @@ const Dashboard = () => {
 
                   {/* Edit Receiver Names Section */}
                   <div className="edit-section">
-                    <h3>Edit Receiver Names</h3>
+                    <h3>Edit {entryTypeFilter === 'expense' ? 'Receiver' : 'Sender'} Names</h3>
                     <div className="editable-list">
-                      {receivers.map(rec => (
+                      {typedReceivers.map(rec => (
                         <div key={rec} className="editable-list-item">
                           {editingItem?.type === 'receiver' && editingItem.oldValue === rec ? (
                             <input

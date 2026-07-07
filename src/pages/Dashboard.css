@@ -2025,3 +2025,44 @@ td .category-badge[style],
     bottom: 0.75rem;
   }
 }
+
+/* ── Income / Expense type toggle ─────────────────────────────────── */
+.entry-type-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.entry-type-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  border: 2px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.entry-type-btn:hover {
+  border-color: var(--pink-primary);
+  color: var(--pink-primary);
+}
+
+.entry-type-btn.active-expense {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border-color: #ef4444;
+  color: #fff;
+  font-weight: 600;
+}
+
+.entry-type-btn.active-income {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  border-color: #22c55e;
+  color: #fff;
+  font-weight: 600;
+}
