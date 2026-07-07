@@ -180,8 +180,6 @@ const BatchEntry = () => {
     }
   };
 
-  const getMonthLabel = (month, year) => `${MONTH_NAMES[(month || 1) - 1]} ${year}`;
-
   return (
     <div className="batch-entry">
       <div className="batch-entry-container">
