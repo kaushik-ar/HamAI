@@ -5,10 +5,10 @@ import { AuthContext } from '../context/AuthContext';
 import api from '../utils/axios';
 import toast from 'react-hot-toast';
 import { auth } from '../firebase';
-import { 
-  Plus, LogOut, DollarSign, Calendar, Tag, Trash2, Edit2, 
+import {
+  LogOut, DollarSign, Calendar, Tag, Trash2, Edit2,
   ChevronLeft, ChevronRight, ChevronDown, PieChart,
-  Search, TrendingUp, Download, User
+  Search, TrendingUp, Download, User, ArrowDownRight, ArrowUpRight, Plus, Layers
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import {
@@ -378,8 +378,9 @@ const Dashboard = () => {
       fileName = 'transactions_all.xlsx';
     }
     const rows = [
-      ['Receiver', 'Category', 'Items Summary', 'Subtotal', 'Tax', 'Total', 'Notes'],
+      ['Type', 'Receiver', 'Category', 'Items Summary', 'Subtotal', 'Tax', 'Total', 'Notes'],
       ...tableData.map((entry) => [
+        entry.type === 'income' ? 'Income' : 'Expense',
         entry.receiver || entry.store || 'Unknown',
         entry.category || 'other',
         (entry.items || []).map((i) => `${i.name || ''} ($${Number(i.amount || 0).toFixed(2)})`).join('; '),
@@ -398,6 +399,7 @@ const Dashboard = () => {
 
   const renderTableRow = (entry) => {
     const cat = entry.category || 'other';
+    const isIncome = entry.type === 'income';
     const catLower = cat.toLowerCase();
     let categoryColor = categoryColorMap[catLower];
     if (!categoryColor) {
@@ -424,6 +426,12 @@ const Dashboard = () => {
         className="transaction-row"
         onClick={() => openDetails(entry)}
       >
+        <td>
+          <div className={`transaction-type-pill ${isIncome ? 'income' : 'expense'}`}>
+            {isIncome ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+            <span>{isIncome ? 'Income' : 'Expense'}</span>
+          </div>
+        </td>
         <td>{entry.receiver || entry.store || 'Unknown'}</td>
         <td>
           <span
@@ -753,9 +761,17 @@ const Dashboard = () => {
               {viewMode === 'year' && `No data for ${selectedYear}`}
               {viewMode === 'overall' && 'No transactions yet'}
             </p>
-            <button type="button" className="primary-button" onClick={() => navigate(`/add-entry?month=${selectedMonth}&year=${selectedYear}`)}>
-              <Plus size={20} /> Add transaction
-            </button>
+            <div className="empty-state-actions">
+              <button type="button" className="primary-button primary-button-expense" onClick={() => navigate(`/add-entry?month=${selectedMonth}&year=${selectedYear}&type=expense`)}>
+                <ArrowDownRight size={18} /> Add Expense
+              </button>
+              <button type="button" className="primary-button primary-button-income" onClick={() => navigate(`/add-entry?month=${selectedMonth}&year=${selectedYear}&type=income`)}>
+                <ArrowUpRight size={18} /> Add Income
+              </button>
+              <button type="button" className="primary-button primary-button-bulk" onClick={() => navigate(`/batch-entry?month=${selectedMonth}&year=${selectedYear}`)}>
+                <Layers size={18} /> Bulk Add
+              </button>
+            </div>
           </div>
         ) : (
           <>
@@ -839,13 +855,32 @@ const Dashboard = () => {
                       aria-label="Search transactions"
                     />
                   </div>
-                  <button
-                    className="table-add-button"
-                    onClick={() => navigate(`/add-entry?month=${selectedMonth}&year=${selectedYear}`)}
-                    type="button"
-                  >
-                    <Plus size={16} aria-hidden /> Add
-                  </button>
+                  <div className="table-action-group">
+                    <button
+                      className="table-add-button table-add-button-expense"
+                      onClick={() => navigate(`/add-entry?month=${selectedMonth}&year=${selectedYear}&type=expense`)}
+                      type="button"
+                      title="Record a new expense"
+                    >
+                      <Plus size={15} aria-hidden /> Add Expense
+                    </button>
+                    <button
+                      className="table-add-button table-add-button-income"
+                      onClick={() => navigate(`/add-entry?month=${selectedMonth}&year=${selectedYear}&type=income`)}
+                      type="button"
+                      title="Record a new income"
+                    >
+                      <Plus size={15} aria-hidden /> Add Income
+                    </button>
+                    <button
+                      className="table-add-button table-add-button-bulk"
+                      onClick={() => navigate(`/batch-entry?month=${selectedMonth}&year=${selectedYear}`)}
+                      type="button"
+                      title="Add multiple transactions across months using AI"
+                    >
+                      <Layers size={15} aria-hidden /> Bulk Add
+                    </button>
+                  </div>
                   <button
                     type="button"
                     className="table-download-excel"
@@ -906,7 +941,8 @@ const Dashboard = () => {
                     <table className="entries-table">
                       <thead>
                         <tr>
-                          <th>Receiver</th>
+                          <th>Type</th>
+                          <th>Sender / Receiver</th>
                           <th>Category</th>
                           <th>Items</th>
                           <th>Subtotal</th>
@@ -1165,7 +1201,7 @@ const Dashboard = () => {
             </div>
             <div className="details-body">
               <div className="details-row">
-                <span className="details-label">Receiver</span>
+                <span className="details-label">{detailsModal.tx.type === 'income' ? 'Sender' : 'Receiver'}</span>
                 <span className="details-value">{detailsModal.tx.receiver || detailsModal.tx.store || 'Unknown'}</span>
               </div>
               <div className="details-row">
@@ -1197,18 +1233,51 @@ const Dashboard = () => {
                 </div>
               ) : null}
               <div className="details-totals">
-                <div className="details-item">
-                  <span>Subtotal</span>
-                  <span>${Number(detailsModal.tx.subtotal || 0).toFixed(2)}</span>
-                </div>
-                <div className="details-item">
-                  <span>Tax</span>
-                  <span>${Number(detailsModal.tx.tax || 0).toFixed(2)}</span>
-                </div>
-                <div className="details-item details-total">
-                  <span>Total</span>
-                  <span>${Number(detailsModal.tx.total || 0).toFixed(2)}</span>
-                </div>
+                {detailsModal.tx.type === 'income' ? (
+                  <>
+                    <div className="details-item">
+                      <span>Gross Income</span>
+                      <span>${Number(detailsModal.tx.subtotal || 0).toFixed(2)}</span>
+                    </div>
+                    {Number(detailsModal.tx.stateTax || 0) > 0 && (
+                      <div className="details-item">
+                        <span>State Tax</span>
+                        <span>-${Number(detailsModal.tx.stateTax || 0).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {Number(detailsModal.tx.federalTax || 0) > 0 && (
+                      <div className="details-item">
+                        <span>Federal Tax</span>
+                        <span>-${Number(detailsModal.tx.federalTax || 0).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {Number(detailsModal.tx.stateTax || 0) === 0 && Number(detailsModal.tx.federalTax || 0) === 0 && Number(detailsModal.tx.tax || 0) > 0 && (
+                      <div className="details-item">
+                        <span>Tax</span>
+                        <span>-${Number(detailsModal.tx.tax || 0).toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="details-item details-total">
+                      <span>Net Income</span>
+                      <span>${Number(detailsModal.tx.total || 0).toFixed(2)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="details-item">
+                      <span>Subtotal</span>
+                      <span>${Number(detailsModal.tx.subtotal || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="details-item">
+                      <span>Tax</span>
+                      <span>${Number(detailsModal.tx.tax || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="details-item details-total">
+                      <span>Total</span>
+                      <span>${Number(detailsModal.tx.total || 0).toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

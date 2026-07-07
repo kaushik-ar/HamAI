@@ -9,6 +9,7 @@ import Register from './pages/Register';
 import CompleteProfile from './pages/CompleteProfile';
 import Dashboard from './pages/Dashboard';
 import AddEntry from './pages/AddEntry';
+import BatchEntry from './pages/BatchEntry';
 import ReviewEntry from './pages/ReviewEntry';
 import Profile from './pages/Profile';
 import { setNavigate } from './utils/navigation';
@@ -47,6 +48,14 @@ function AppRoutes() {
               element={
                 <PrivateRoute>
                   <AddEntry />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/batch-entry"
+              element={
+                <PrivateRoute>
+                  <BatchEntry />
                 </PrivateRoute>
               }
             />

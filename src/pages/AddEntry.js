@@ -2,40 +2,48 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../utils/axios';
 import toast from 'react-hot-toast';
-import { Plus, X, ArrowLeft, Calendar, Save } from 'lucide-react';
+import { Plus, X, ArrowLeft, Calendar, Save, ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import './AddEntry.css';
+
+const DEFAULT_INCOME_SENDERS = ['Kaushik', 'Parents', 'Uncle', 'NYU'];
+const DEFAULT_INCOME_CATEGORIES = ['deposit', 'refund', 'salary'];
 
 const AddEntry = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
+  const initialEntryType = searchParams.get('type') === 'income' ? 'income' : 'expense';
+
   // Month/Year state - default to current month/year or from URL params
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
   const defaultMonth = 8; // August
   const defaultYear = 2025; // Default year is 2025
-  
+
   const [selectedMonth, setSelectedMonth] = useState(
     parseInt(searchParams.get('month')) || defaultMonth
   );
   const [selectedYear, setSelectedYear] = useState(
     parseInt(searchParams.get('year')) || defaultYear
   );
-  
+
   const isEditMode = searchParams.get('edit') === 'true';
   const editEntryId = searchParams.get('id');
-  
+
   const [aiText, setAiText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
-  
+
   // Manual entry state - support multiple entries
+  const [selectedType, setSelectedType] = useState(initialEntryType);
   const [entries, setEntries] = useState([{
     receiver: '',
     items: [{ name: '', amount: '' }],
     tax: '',
+    stateTax: '',
+    federalTax: '',
     category: '',
-    notes: ''
+    notes: '',
+    type: initialEntryType
   }]);
   const [categories, setCategories] = useState([]);
   const [newCategory, setNewCategory] = useState('');
@@ -62,6 +70,10 @@ const AddEntry = () => {
     years.push(y);
   }
 
+  useEffect(() => {
+    setEntries((prevEntries) => prevEntries.map((entry) => ({ ...entry, type: selectedType })));
+  }, [selectedType]);
+
   // Load categories and receivers
   useEffect(() => {
     loadCategories();
@@ -84,6 +96,8 @@ const AddEntry = () => {
             setSelectedMonth(month);
             setSelectedYear(year);
 
+            const entryTypeValue = parsed.type === 'income' ? 'income' : 'expense';
+            setSelectedType(entryTypeValue);
             setEntries([{
               receiver: parsed.receiver || parsed.store || '',
               items: Array.isArray(parsed.items) && parsed.items.length
@@ -92,9 +106,12 @@ const AddEntry = () => {
                     amount: i?.amount !== undefined && i?.amount !== null ? String(i.amount) : ''
                   }))
                 : [{ name: '', amount: '' }],
-              tax: parsed.tax !== undefined && parsed.tax !== null ? String(parsed.tax) : '',
+              tax: entryTypeValue === 'expense' && parsed.tax !== undefined && parsed.tax !== null ? String(parsed.tax) : '',
+              stateTax: entryTypeValue === 'income' && parsed.stateTax !== undefined && parsed.stateTax !== null ? String(parsed.stateTax) : '',
+              federalTax: entryTypeValue === 'income' && parsed.federalTax !== undefined && parsed.federalTax !== null ? String(parsed.federalTax) : '',
               category: parsed.category || '',
-              notes: parsed.notes || ''
+              notes: parsed.notes || '',
+              type: entryTypeValue
             }]);
             return;
           }
@@ -105,6 +122,8 @@ const AddEntry = () => {
         const e = response.data;
         setSelectedMonth(e.month || selectedMonth);
         setSelectedYear(e.year || selectedYear);
+        const entryTypeValue = e.type === 'income' ? 'income' : 'expense';
+        setSelectedType(entryTypeValue);
         setEntries([{
           receiver: e.receiver || e.store || '',
           items: Array.isArray(e.items) && e.items.length
@@ -113,9 +132,12 @@ const AddEntry = () => {
                 amount: i?.amount !== undefined && i?.amount !== null ? String(i.amount) : ''
               }))
             : [{ name: '', amount: '' }],
-          tax: e.tax !== undefined && e.tax !== null ? String(e.tax) : '',
+          tax: entryTypeValue === 'expense' && e.tax !== undefined && e.tax !== null ? String(e.tax) : '',
+          stateTax: entryTypeValue === 'income' && e.stateTax !== undefined && e.stateTax !== null ? String(e.stateTax) : '',
+          federalTax: entryTypeValue === 'income' && e.federalTax !== undefined && e.federalTax !== null ? String(e.federalTax) : '',
           category: e.category || '',
-          notes: e.notes || ''
+          notes: e.notes || '',
+          type: entryTypeValue
         }]);
       } catch (error) {
         toast.error(error.response?.data?.message || 'Failed to load transaction for editing');
@@ -160,7 +182,7 @@ const AddEntry = () => {
 
     setAiLoading(true);
     try {
-      const response = await api.post('/budget/parse', { text: aiText });
+      const response = await api.post('/budget/parse', { text: aiText, type: selectedType });
       const data = response.data;
 
       // Auto-fill the right-side "Add transaction" form (no redirect)
@@ -175,9 +197,12 @@ const AddEntry = () => {
       setEntries([{
         receiver,
         items,
-        tax: data.tax !== undefined && data.tax !== null ? String(data.tax) : '',
+        tax: selectedType === 'expense' && data.tax !== undefined && data.tax !== null ? String(data.tax) : '',
+        stateTax: selectedType === 'income' && data.stateTax !== undefined && data.stateTax !== null ? String(data.stateTax) : '',
+        federalTax: selectedType === 'income' && data.federalTax !== undefined && data.federalTax !== null ? String(data.federalTax) : '',
         category: data.category || '',
-        notes: data.notes || ''
+        notes: data.notes || '',
+        type: selectedType
       }]);
 
       // Keep the user on this page and clear the textarea for next use
@@ -201,8 +226,11 @@ const AddEntry = () => {
       receiver: '',
       items: [{ name: '', amount: '' }],
       tax: '',
+      stateTax: '',
+      federalTax: '',
       category: '',
-      notes: ''
+      notes: '',
+      type: selectedType
     }]);
   };
 
@@ -263,9 +291,20 @@ const AddEntry = () => {
       }
       
       const subtotal = entry.items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-      const tax = parseFloat(entry.tax) || 0;
-      const total = subtotal + tax;
-      
+      const entryType = entry.type || selectedType;
+      let tax, stateTax, federalTax, total;
+      if (entryType === 'income') {
+        stateTax = parseFloat(entry.stateTax) || 0;
+        federalTax = parseFloat(entry.federalTax) || 0;
+        tax = stateTax + federalTax;
+        total = subtotal - tax;
+      } else {
+        tax = parseFloat(entry.tax) || 0;
+        stateTax = 0;
+        federalTax = 0;
+        total = subtotal + tax;
+      }
+
       try {
         await api.put(`/budget/${editEntryId}?month=${selectedMonth}&year=${selectedYear}`, {
           receiver: entry.receiver,
@@ -275,9 +314,12 @@ const AddEntry = () => {
           })),
           subtotal,
           tax,
+          stateTax,
+          federalTax,
           total,
           category: entry.category,
           notes: entry.notes || '',
+          type: entryType,
           month: selectedMonth,
           year: selectedYear
         });
@@ -320,8 +362,19 @@ const AddEntry = () => {
       // Save all entries
       const promises = entries.map(entry => {
         const subtotal = calculateSubtotal(entry.items);
-        const tax = parseFloat(entry.tax) || 0;
-        const total = subtotal + tax;
+        const entryType = entry.type || selectedType;
+        let tax, stateTax, federalTax, total;
+        if (entryType === 'income') {
+          stateTax = parseFloat(entry.stateTax) || 0;
+          federalTax = parseFloat(entry.federalTax) || 0;
+          tax = stateTax + federalTax;
+          total = subtotal - tax;
+        } else {
+          tax = parseFloat(entry.tax) || 0;
+          stateTax = 0;
+          federalTax = 0;
+          total = subtotal + tax;
+        }
 
         return api.post('/budget', {
           receiver: entry.receiver,
@@ -331,9 +384,12 @@ const AddEntry = () => {
           })),
           subtotal,
           tax,
+          stateTax,
+          federalTax,
           total,
           category: entry.category,
           notes: entry.notes || '',
+          type: entryType,
           month: selectedMonth,
           year: selectedYear
         });
@@ -489,6 +545,23 @@ const AddEntry = () => {
             </div>
             <p className="subtitle">For {months[selectedMonth - 1].label} {selectedYear}</p>
 
+            <div className="entry-type-selector" role="tablist" aria-label="Transaction type">
+              <button
+                type="button"
+                className={`entry-type-button expense ${selectedType === 'expense' ? 'active' : ''}`}
+                onClick={() => setSelectedType('expense')}
+              >
+                <ArrowDownRight size={18} /> Expense
+              </button>
+              <button
+                type="button"
+                className={`entry-type-button income ${selectedType === 'income' ? 'active' : ''}`}
+                onClick={() => setSelectedType('income')}
+              >
+                <ArrowUpRight size={18} /> Income
+              </button>
+            </div>
+
             {entries.map((entry, entryIndex) => (
               <div key={entryIndex} className="entry-form-group">
                 <div className="entry-header">
@@ -505,7 +578,7 @@ const AddEntry = () => {
                 </div>
 
                 <div className="form-group">
-                  <label>Receiver Name</label>
+                  <label>{selectedType === 'income' ? 'Sender Name' : 'Receiver Name'}</label>
                   <div className="receiver-select-wrapper">
                     <select
                       value={entry.receiver}
@@ -513,10 +586,21 @@ const AddEntry = () => {
                       className="receiver-select"
                       required
                     >
-                      <option value="">Select receiver</option>
-                      {receivers.map(rec => (
-                        <option key={rec} value={rec}>{rec}</option>
-                      ))}
+                      <option value="">{selectedType === 'income' ? 'Select sender' : 'Select receiver'}</option>
+                      {selectedType === 'income' && (
+                        <optgroup label="Common senders">
+                          {DEFAULT_INCOME_SENDERS.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {receivers.filter(r => selectedType !== 'income' || !DEFAULT_INCOME_SENDERS.includes(r)).length > 0 && (
+                        <optgroup label={selectedType === 'income' ? 'Saved senders' : 'Saved receivers'}>
+                          {receivers.filter(r => selectedType !== 'income' || !DEFAULT_INCOME_SENDERS.includes(r)).map(rec => (
+                            <option key={rec} value={rec}>{rec}</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                     {!showNewReceiver && (
                       <button
@@ -534,7 +618,7 @@ const AddEntry = () => {
                         type="text"
                         value={newReceiver}
                         onChange={(e) => setNewReceiver(e.target.value)}
-                        placeholder="Receiver name"
+                        placeholder={selectedType === 'income' ? 'Sender name' : 'Receiver name'}
                         onKeyPress={(e) => e.key === 'Enter' && addNewReceiver()}
                         autoFocus
                       />
@@ -580,17 +664,44 @@ const AddEntry = () => {
                 </div>
 
                 <div className="form-row">
-                  <div className="form-group">
-                    <label>Tax (optional)</label>
-                    <input
-                      type="number"
-                      value={entry.tax}
-                      onChange={(e) => updateEntry(entryIndex, 'tax', e.target.value)}
-                      placeholder="0.00"
-                      step="0.01"
-                      min="0"
-                    />
-                  </div>
+                  {selectedType === 'income' ? (
+                    <>
+                      <div className="form-group">
+                        <label>State Tax (deducted)</label>
+                        <input
+                          type="number"
+                          value={entry.stateTax}
+                          onChange={(e) => updateEntry(entryIndex, 'stateTax', e.target.value)}
+                          placeholder="0.00"
+                          step="0.01"
+                          min="0"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Federal Tax (deducted)</label>
+                        <input
+                          type="number"
+                          value={entry.federalTax}
+                          onChange={(e) => updateEntry(entryIndex, 'federalTax', e.target.value)}
+                          placeholder="0.00"
+                          step="0.01"
+                          min="0"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="form-group">
+                      <label>Tax (optional)</label>
+                      <input
+                        type="number"
+                        value={entry.tax}
+                        onChange={(e) => updateEntry(entryIndex, 'tax', e.target.value)}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                      />
+                    </div>
+                  )}
                   <div className="form-group">
                     <label>Category</label>
                     <div className="category-select-wrapper">
@@ -600,9 +711,20 @@ const AddEntry = () => {
                         required
                       >
                         <option value="">Select category</option>
-                        {categories.map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
+                        {selectedType === 'income' && (
+                          <optgroup label="Income categories">
+                            {DEFAULT_INCOME_CATEGORIES.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {categories.filter(c => selectedType !== 'income' || !DEFAULT_INCOME_CATEGORIES.includes(c)).length > 0 && (
+                          <optgroup label={selectedType === 'income' ? 'Other categories' : 'Categories'}>
+                            {categories.filter(c => selectedType !== 'income' || !DEFAULT_INCOME_CATEGORIES.includes(c)).map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </optgroup>
+                        )}
                       </select>
                       {!showNewCategory && (
                         <button
@@ -641,9 +763,30 @@ const AddEntry = () => {
                 </div>
 
                 <div className="entry-summary">
-                  <p>Subtotal: ${calculateSubtotal(entry.items).toFixed(2)}</p>
-                  <p>Tax: ${(parseFloat(entry.tax) || 0).toFixed(2)}</p>
-                  <p className="total">Total: ${(calculateSubtotal(entry.items) + (parseFloat(entry.tax) || 0)).toFixed(2)}</p>
+                  {selectedType === 'income' ? (() => {
+                    const subtotal = calculateSubtotal(entry.items);
+                    const stateTax = parseFloat(entry.stateTax) || 0;
+                    const federalTax = parseFloat(entry.federalTax) || 0;
+                    const net = subtotal - stateTax - federalTax;
+                    return (
+                      <>
+                        <p>Gross Income: ${subtotal.toFixed(2)}</p>
+                        <p>State Tax: -${stateTax.toFixed(2)}</p>
+                        <p>Federal Tax: -${federalTax.toFixed(2)}</p>
+                        <p className="total">Net Income: ${net.toFixed(2)}</p>
+                      </>
+                    );
+                  })() : (() => {
+                    const subtotal = calculateSubtotal(entry.items);
+                    const tax = parseFloat(entry.tax) || 0;
+                    return (
+                      <>
+                        <p>Subtotal: ${subtotal.toFixed(2)}</p>
+                        <p>Tax: ${tax.toFixed(2)}</p>
+                        <p className="total">Total: ${(subtotal + tax).toFixed(2)}</p>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
