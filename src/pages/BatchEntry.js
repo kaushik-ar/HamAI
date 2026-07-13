@@ -61,7 +61,7 @@ const BatchEntry = () => {
     setParseError('');
     setEntries([]);
     try {
-      const res = await api.post('/budget/parse-batch', { text: promptText });
+      const res = await api.post('/budget/parse-batch', { text: promptText, month: returnMonth, year: returnYear });
       if (res.data.error) {
         setParseError(res.data.error);
       } else if (!res.data.entries || res.data.entries.length === 0) {

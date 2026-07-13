@@ -8,7 +8,7 @@ import { auth } from '../firebase';
 import {
   LogOut, DollarSign, Calendar, Tag, Trash2, Edit2,
   ChevronLeft, ChevronRight, ChevronDown, PieChart,
-  Search, TrendingUp, Download, User, ArrowDownRight, ArrowUpRight, Plus, Layers
+  Search, TrendingUp, Download, User, ArrowDownRight, ArrowUpRight, Plus, Layers, X
 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import {
@@ -60,6 +60,14 @@ const Dashboard = () => {
   const [detailsModal, setDetailsModal] = useState({ open: false, tx: null });
   const [selectedCategories, setSelectedCategories] = useState(new Set());
   const [categoryColorMap, setCategoryColorMap] = useState(initializeCategoryColorMap);
+
+  // "To be added" planned transactions (sidebar)
+  const [plannedItems, setPlannedItems] = useState([]);
+  const [plannedLoading, setPlannedLoading] = useState(false);
+  const [newPlannedDesc, setNewPlannedDesc] = useState('');
+  const [newPlannedAmount, setNewPlannedAmount] = useState('');
+  const [newPlannedType, setNewPlannedType] = useState('expense');
+  const [addingPlanned, setAddingPlanned] = useState(false);
 
   // Mr.Ham chatbot state
   const [mrHamOpen, setMrHamOpen] = useState(false);
@@ -327,6 +335,62 @@ const Dashboard = () => {
     setSelectedMonth(newMonth);
     setSelectedYear(newYear);
     setSearchParams({ month: newMonth, year: newYear });
+  };
+
+  // Bulk Add should reflect the month currently being viewed; if the Year or
+  // Overall view is active (no single displayed month), default to today's month
+  const bulkAddMonth = viewMode === 'month' ? selectedMonth : currentMonth;
+  const bulkAddYear = viewMode === 'month' ? selectedYear : currentYear;
+
+  const fetchPlannedItems = useCallback(async () => {
+    setPlannedLoading(true);
+    try {
+      const res = await api.get(`/budget/planned?month=${bulkAddMonth}&year=${bulkAddYear}`);
+      setPlannedItems(res.data?.entries || []);
+    } catch (error) {
+      console.error('Failed to load planned transactions:', error);
+      setPlannedItems([]);
+    } finally {
+      setPlannedLoading(false);
+    }
+  }, [bulkAddMonth, bulkAddYear]);
+
+  useEffect(() => {
+    fetchPlannedItems();
+  }, [fetchPlannedItems]);
+
+  const handleAddPlanned = async (e) => {
+    e.preventDefault();
+    const description = newPlannedDesc.trim();
+    if (!description) return;
+
+    setAddingPlanned(true);
+    try {
+      await api.post('/budget/planned', {
+        description,
+        amount: newPlannedAmount !== '' ? parseFloat(newPlannedAmount) : null,
+        type: newPlannedType,
+        month: bulkAddMonth,
+        year: bulkAddYear
+      });
+      setNewPlannedDesc('');
+      setNewPlannedAmount('');
+      fetchPlannedItems();
+    } catch (error) {
+      toast.error('Failed to add planned transaction');
+    } finally {
+      setAddingPlanned(false);
+    }
+  };
+
+  const handleRemovePlanned = async (id) => {
+    setPlannedItems((prev) => prev.filter((item) => item.id !== id));
+    try {
+      await api.delete(`/budget/planned/${id}?month=${bulkAddMonth}&year=${bulkAddYear}`);
+    } catch (error) {
+      toast.error('Failed to remove planned transaction');
+      fetchPlannedItems();
+    }
   };
 
   // Reset category filter when the income/expense type toggle changes
@@ -786,6 +850,8 @@ const Dashboard = () => {
           )}
         </div>
 
+        <div className="dashboard-layout">
+        <div className="dashboard-main">
         {!stats ? (
           <div className="empty-state">
             <p>
@@ -800,7 +866,7 @@ const Dashboard = () => {
               <button type="button" className="primary-button primary-button-income" onClick={() => navigate(`/add-entry?month=${selectedMonth}&year=${selectedYear}&type=income`)}>
                 <ArrowUpRight size={18} /> Add Income
               </button>
-              <button type="button" className="primary-button primary-button-bulk" onClick={() => navigate(`/batch-entry?month=${selectedMonth}&year=${selectedYear}`)}>
+              <button type="button" className="primary-button primary-button-bulk" onClick={() => navigate(`/batch-entry?month=${bulkAddMonth}&year=${bulkAddYear}`)}>
                 <Layers size={18} /> Bulk Add
               </button>
             </div>
@@ -924,7 +990,7 @@ const Dashboard = () => {
                     </button>
                     <button
                       className="table-add-button table-add-button-bulk"
-                      onClick={() => navigate(`/batch-entry?month=${selectedMonth}&year=${selectedYear}`)}
+                      onClick={() => navigate(`/batch-entry?month=${bulkAddMonth}&year=${bulkAddYear}`)}
                       type="button"
                       title="Add multiple transactions across months using AI"
                     >
@@ -1201,6 +1267,90 @@ const Dashboard = () => {
             ) : null}
           </>
         )}
+        </div>
+
+        <aside className="dashboard-sidebar">
+          <div className="to-be-added-panel">
+            <h3 className="to-be-added-title">To be added</h3>
+            <p className="to-be-added-subtitle">
+              Transactions you know are coming for {months[bulkAddMonth - 1]} {bulkAddYear} but haven't finished or decided to log yet.
+            </p>
+
+            <form className="to-be-added-form" onSubmit={handleAddPlanned}>
+              <input
+                type="text"
+                className="to-be-added-input"
+                placeholder="e.g. Car insurance"
+                value={newPlannedDesc}
+                onChange={(e) => setNewPlannedDesc(e.target.value)}
+                aria-label="Planned transaction description"
+              />
+              <div className="to-be-added-form-row">
+                <input
+                  type="number"
+                  className="to-be-added-input to-be-added-amount"
+                  placeholder="$ (optional)"
+                  value={newPlannedAmount}
+                  onChange={(e) => setNewPlannedAmount(e.target.value)}
+                  step="0.01"
+                  min="0"
+                  aria-label="Estimated amount"
+                />
+                <div className="to-be-added-type-toggle">
+                  <button
+                    type="button"
+                    className={`to-be-added-type-btn expense${newPlannedType === 'expense' ? ' active' : ''}`}
+                    onClick={() => setNewPlannedType('expense')}
+                  >
+                    <ArrowDownRight size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    className={`to-be-added-type-btn income${newPlannedType === 'income' ? ' active' : ''}`}
+                    onClick={() => setNewPlannedType('income')}
+                  >
+                    <ArrowUpRight size={13} />
+                  </button>
+                </div>
+              </div>
+              <button type="submit" className="to-be-added-add-button" disabled={!newPlannedDesc.trim() || addingPlanned}>
+                <Plus size={14} /> {addingPlanned ? 'Adding...' : 'Add'}
+              </button>
+            </form>
+
+            <div className="to-be-added-list">
+              {plannedLoading ? (
+                <p className="to-be-added-empty">Loading...</p>
+              ) : plannedItems.length === 0 ? (
+                <p className="to-be-added-empty">Nothing planned for this month yet.</p>
+              ) : (
+                plannedItems.map((item) => (
+                  <div key={item.id} className={`to-be-added-item ${item.type === 'income' ? 'income' : 'expense'}`}>
+                    <div className="to-be-added-item-main">
+                      {item.type === 'income' ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                      <span className="to-be-added-item-desc">{item.description}</span>
+                    </div>
+                    <div className="to-be-added-item-side">
+                      {item.amount != null && (
+                        <span className="to-be-added-item-amount">${Number(item.amount).toFixed(2)}</span>
+                      )}
+                      <button
+                        type="button"
+                        className="to-be-added-remove"
+                        onClick={() => handleRemovePlanned(item.id)}
+                        title="Remove"
+                        aria-label="Remove planned transaction"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </aside>
+        </div>
       </div>
 
       {/* Confirm dialogs */}

@@ -2066,3 +2066,216 @@ td .category-badge[style],
   color: #fff;
   font-weight: 600;
 }
+
+/* ── Dashboard main/sidebar layout ─────────────────────────────────── */
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: start;
+  gap: var(--spacing-lg);
+}
+
+.dashboard-main {
+  min-width: 0;
+}
+
+.dashboard-sidebar {
+  position: sticky;
+  top: var(--spacing-md);
+}
+
+@media (max-width: 1024px) {
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-sidebar {
+    position: static;
+  }
+}
+
+/* ── "To be added" planned transactions panel ─────────────────────── */
+.to-be-added-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  box-shadow: 0 4px 20px var(--shadow-sm);
+}
+
+.to-be-added-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.to-be-added-subtitle {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.to-be-added-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.to-be-added-input {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary, var(--bg-tertiary));
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.to-be-added-input:focus {
+  outline: none;
+  border-color: var(--pink-primary);
+}
+
+.to-be-added-form-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.to-be-added-amount {
+  flex: 1;
+  min-width: 0;
+}
+
+.to-be-added-type-toggle {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.to-be-added-type-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.to-be-added-type-btn.expense.active {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+}
+
+.to-be-added-type-btn.income.active {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #fff;
+}
+
+.to-be-added-add-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--pink-primary) 0%, var(--pink-secondary) 100%);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.to-be-added-add-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.to-be-added-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.to-be-added-empty {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+.to-be-added-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  border-left: 3px solid #ef4444;
+}
+
+.to-be-added-item.income {
+  border-left-color: #22c55e;
+}
+
+.to-be-added-item-main {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.to-be-added-item-desc {
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.to-be-added-item-side {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.to-be-added-item-amount {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.to-be-added-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.15rem;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.to-be-added-remove:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
